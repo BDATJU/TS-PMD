@@ -29,9 +29,9 @@ log.info("⏳ 正在初始化模型...")
 esm_model, alphabet = esm.pretrained.esm2_t33_650M_UR50D()
 esm_model = esm_model.eval().to(DEVICE)
 for p in esm_model.parameters(): p.requires_grad = False
-
-GEARNET_PATH = "/root/BDA/algorithm-platform/algorithms/MBSE/Stability/gearnet_edge.pth"
-BEST_MODEL_PATH = "/root/BDA/algorithm-platform/algorithms/MBSE/Stability/best_model.pth"
+#模型可以在如下BlindDDG的文件里找到
+GEARNET_PATH = "BlindDDG/Weight/mc_gearnet_edge.pth"
+BEST_MODEL_PATH = "BlindDDG/Weight/pretrained_blindddg.pth"
 
 evaluator = ProteinStabilityPredictor(GEARNET_PATH, hidden_dim=128, dropout=0.5).to(DEVICE)
 if os.path.exists(BEST_MODEL_PATH):
