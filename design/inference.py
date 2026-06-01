@@ -40,7 +40,7 @@ evaluator.eval()
 for p in evaluator.parameters(): p.requires_grad = False
 
 # =====================================================================
-# 2. 生成器网络定义 (与 val_t7 MLP 完全一致)
+# 2. 生成器网络定义 
 # =====================================================================
 class TargetConditionedMLPGenerator(nn.Module):
     def __init__(self, feature_dim=20, hidden_dim=64):
@@ -82,7 +82,7 @@ class AmortizedSequenceGenerator(nn.Module):
         return P_soft, mut_seq_emb, mut_struct_feature, current_delta
 
 # =====================================================================
-# 3. 完美复刻的 PDB 处理与打包工具
+# 3. PDB 处理与打包工具
 # =====================================================================
 def download_pdb(pdb_id, save_dir="./static"):
     os.makedirs(save_dir, exist_ok=True)
@@ -94,7 +94,6 @@ def download_pdb(pdb_id, save_dir="./static"):
             with open(save_path, "w") as f: f.write(response.text)
     return save_path
 
-# 🌟 将你提供的安全解析逻辑完美融入
 def parse_and_build_graph_robust(pdb_path, target_chain='A', device='cuda'):
     seq, ca_coords, res_types, pdb_indices = [], [], [], []
     
@@ -108,7 +107,7 @@ def parse_and_build_graph_robust(pdb_path, target_chain='A', device='cuda'):
                         continue
                         
                     res_name = line[17:20].strip()
-                    pdb_res_num = line[22:27].strip() # 改为 string 保存插入码
+                    pdb_res_num = line[22:27].strip() 
                     
                     x, y, z = float(line[30:38]), float(line[38:46]), float(line[46:54])
                     aa1 = AA3_TO_1.get(res_name, 'X')
@@ -124,8 +123,7 @@ def parse_and_build_graph_robust(pdb_path, target_chain='A', device='cuda'):
     coords = torch.tensor(ca_coords, dtype=torch.float32)
     res_types_t = torch.tensor(res_types, dtype=torch.long)
     num_node = len(seq)
-    
-    # 手动建图，彻底抛弃 TorchDrug GraphConstruction
+
     edge_list, bond_type = [], []
     for i in range(num_node - 1):
         edge_list.append([i, i+1, 0])
@@ -162,7 +160,6 @@ def parse_and_build_graph_robust(pdb_path, target_chain='A', device='cuda'):
         
     return protein, seq_emb, "".join(seq), pdb_indices
 
-# 🌟 100% 还原 val_t7 的打包逻辑
 def prepare_packed_data(graph, seq_emb, device='cuda'):
     g = graph
     pos = getattr(g, 'node_position', None)
@@ -213,14 +210,11 @@ def run_protein_design(config):
     try:
         raw_pdb_path = download_pdb(pdb_id, getattr(config, 'static_dir', './static'))
         
-        # 🌟 调用完美对齐的建图逻辑
         wt_raw_graph, wt_raw_esm, wt_seq, seq_idx_to_pdb_id = parse_and_build_graph_robust(raw_pdb_path, chain_id, DEVICE)
         seq_len = len(wt_seq)
         
         generator_module = AmortizedSequenceGenerator(wt_seq, esm_model, alphabet, hidden_dim=64, device=DEVICE)
         optimizer = torch.optim.Adam(generator_module.mlp_adapter.parameters(), lr=0.01)
-        
-        # 🌟 调用完美对齐的打包逻辑
         wt_g_packed, wt_s_pad, wt_mask = prepare_packed_data(wt_raw_graph, wt_raw_esm, DEVICE)
 
         log.info(f"开始推断训练 (Steps={num_steps})...")
@@ -230,8 +224,6 @@ def run_protein_design(config):
             
             P_soft, mut_s_emb, mut_struct_feat, current_delta = generator_module(temperature=temp)
             mut_s_pad = mut_s_emb.unsqueeze(0)
-            
-            # 由于全长对齐，这里的图克隆绝对安全
             mut_g_fake = wt_g_packed.clone()
             with mut_g_fake.node():
                 mut_g_fake.atom_feature = mut_struct_feat
@@ -258,8 +250,6 @@ def run_protein_design(config):
             
             if (step + 1) % 100 == 0:
                 log.info(f"Step {step+1:04d} | Loss: {total_loss.item():.4f} | ddG: {-L_ddg.item():.4f}")
-
-        # === 提取确定性摊销推断结果 ===
         generator_module.eval() 
         with torch.no_grad():
             _, final_delta_tensor = generator_module.mlp_adapter(generator_module.esm_logits_20)
