@@ -29,20 +29,16 @@ MQ_USERNAME = "bda"
 MQ_PASSWORD = "dsp750403"      
 MQ_HOST = "43.138.50.35"   
 MQ_PORT = 5672 
-# 保持最新调试通的 Java 接口地址
 POST_URL = "http://106.75.241.131:11985/BDAJAVA/task/result" 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), 'static')
 
 def runDesignPrediction(params):
-    # 严格保持 mq.py 的参数解析逻辑
     config_info = params.get('configInfo', {})
     task_id = params.get('task_id')
-    
-    # 将散落的参数合并
     combined_params = {
         'task_id': task_id,
         **config_info,
-        **params # 兼容前端直接把参数放在外层的情况
+        **params 
     }
     
     config = argparse.Namespace(**combined_params)
@@ -50,7 +46,6 @@ def runDesignPrediction(params):
 
     log.logger.info(f"Input={json.dumps(vars(config))}")
     try:
-        # 替换为蛋白质设计算法
         ans = run_protein_design(config)
         res = {
             "task_id": f"{config.task_id}",
@@ -84,7 +79,7 @@ def callback_design(ch, method, properties, body):
         res = runDesignPrediction(params)
         log.logger.info(f"[CONSUMER] The algorithm run successfully! Result={res}")
         res2remote(res)
-        ch.basic_ack(delivery_tag=method.delivery_tag)  # 消息响应，只有算法执行完才回复响应
+        ch.basic_ack(delivery_tag=method.delivery_tag) 
     except Exception as e:
         log.logger.warning(f"There is something error! The message is {e}")
 
@@ -92,8 +87,6 @@ def consumer():
     task_name = "Protein Design (TS-PMD)"
     log.logger.info("==="*20)
     log.logger.info(f"[CONSUMER] This the worker for {task_name}!")
-    
-    # 修改为 PMD 的队列名
     queue_name = "queue_task_protein_design"
     callback_fn = callback_design
     
@@ -104,7 +97,6 @@ def consumer():
                                   heartbeat=30*60))
     channel = connection.channel()
 
-    # 🌟 严格尊崇 mq.py 的写法，不绑定交换机，只声明队列！
     channel.queue_declare(queue=queue_name, durable=True)
 
     channel.basic_qos(prefetch_count=1)  
